@@ -30,7 +30,8 @@ from flask import (
     session,
     url_for,
 )
-# fpdf sirf PDF download pe load hota hai — startup crash avoid = "RABIA'S RENDERINGS MONTHLY BILL"
+# fpdf sirf PDF download pe load hota hai — startup crash avoid
+APP_NAME = "RABIA'S RENDERINGS MONTHLY BILL"
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get("DB_PATH", BASE_DIR / "bills.db"))
 # Change this on online deploy (Render Environment Variable: EDIT_PASSWORD)
