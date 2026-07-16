@@ -3,9 +3,21 @@ from __future__ import annotations
 import io
 import os
 import sqlite3
+import sys
 from datetime import date, datetime
 from functools import wraps
 from pathlib import Path
+
+# PythonAnywhere: pip install --user packages ko web app ke liye available karo
+_user_site = (
+    Path.home()
+    / ".local"
+    / "lib"
+    / f"python{sys.version_info.major}.{sys.version_info.minor}"
+    / "site-packages"
+)
+if _user_site.is_dir() and str(_user_site) not in sys.path:
+    sys.path.insert(0, str(_user_site))
 
 from flask import (
     Flask,
