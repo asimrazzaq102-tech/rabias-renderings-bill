@@ -142,100 +142,111 @@ def fetch_month_rows(month_key: str) -> tuple[list[dict], float, float]:
 
 
 def pdf_safe(text: str) -> str:
-    return text.encode("latin-1", errors="replace").decode("latin-1")
+    return (
+        text.encode("latin-1", errors="replace")
+        .decode("latin-1")
+        .replace("\\", "\\\\")
+        .replace("(", "\\(")
+        .replace(")", "\\)")
+    )
+
+
+def _pdf_text(x: float, y: float, text: str, size: int = 10, bold: bool = False) -> str:
+    font = "/F2" if bold else "/F1"
+    return f"BT {font} {size} Tf 1 0 0 1 {x:.2f} {y:.2f} Tm ({pdf_safe(text)}) Tj ET\n"
+
+
+def _pdf_line(x1: float, y1: float, x2: float, y2: float) -> str:
+    return f"{x1:.2f} {y1:.2f} m {x2:.2f} {y2:.2f} l S\n"
 
 
 def build_month_pdf(month_key: str) -> bytes:
-    from fpdf import FPDF
-    from fpdf.enums import XPos, YPos
-
     rows, total_amount, total_qty = fetch_month_rows(month_key)
     month_label = format_month_label(month_key)
+    generated = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    pdf = FPDF(orientation="L", format="A4")
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.add_page()
-    pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(
-        0,
-        10,
-        pdf_safe("RABIA'S RENDERINGS MONTHLY BILL"),
-        new_x=XPos.LMARGIN,
-        new_y=YPos.NEXT,
-        align="C",
-    )
-    pdf.set_font("Helvetica", "", 12)
-    pdf.cell(
-        0,
-        8,
-        pdf_safe(f"Month: {month_label}"),
-        new_x=XPos.LMARGIN,
-        new_y=YPos.NEXT,
-        align="C",
-    )
-    pdf.cell(
-        0,
-        8,
-        pdf_safe(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}"),
-        new_x=XPos.LMARGIN,
-        new_y=YPos.NEXT,
-        align="C",
-    )
-    pdf.ln(4)
-
+    page_w, page_h = 842, 595  # A4 landscape
+    left, top = 36, page_h - 36
+    col_x = [left, left + 70, left + 290, left + 350, left + 420, left + 500]
     headers = ["Date", "Item", "Qty", "Price", "Amount", "Notes"]
-    widths = [28, 70, 22, 30, 32, 84]
+    row_h = 16
 
-    pdf.set_font("Helvetica", "B", 10)
-    pdf.set_fill_color(15, 61, 62)
-    pdf.set_text_color(255, 255, 255)
-    for header, width in zip(headers, widths):
-        pdf.cell(width, 9, pdf_safe(header), border=1, fill=True, align="C")
-    pdf.ln()
+    content: list[str] = []
+    content.append(_pdf_text(page_w / 2 - 150, top, "RABIA'S RENDERINGS MONTHLY BILL", 16, True))
+    content.append(_pdf_text(page_w / 2 - 60, top - 24, f"Month: {month_label}", 12))
+    content.append(_pdf_text(page_w / 2 - 80, top - 40, f"Generated: {generated}", 11))
 
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font("Helvetica", "", 9)
-    fill = False
-    for row in rows:
-        pdf.set_fill_color(240, 245, 241)
-        values = [
-            str(row["entry_date"]),
-            str(row["item_name"])[:40],
-            f"{float(row['quantity']):.2f}",
-            f"{float(row['price']):.2f}",
-            f"{float(row['amount']):.2f}",
-            str(row["notes"] or "")[:50],
-        ]
-        for value, width in zip(values, widths):
-            pdf.cell(width, 8, pdf_safe(value), border=1, fill=fill)
-        pdf.ln()
-        fill = not fill
+    table_top = top - 70
+    table_bottom = 80
+    table_right = page_w - left
+    header_y = table_top - row_h
 
+    content.append("0.6 w\n")
+    content.append(_pdf_line(left, table_top, table_right, table_top))
+    content.append(_pdf_line(left, header_y, table_right, header_y))
+    for x in col_x:
+        content.append(_pdf_line(x, table_top, x, table_bottom))
+    content.append(_pdf_line(table_right, table_top, table_right, table_bottom))
+    content.append(_pdf_line(left, table_top, left, table_bottom))
+
+    for idx, header in enumerate(headers):
+        content.append(_pdf_text(col_x[idx] + 4, header_y + 4, header, 10, True))
+
+    y = header_y
     if not rows:
-        pdf.cell(sum(widths), 10, pdf_safe("No items in this month."), border=1, align="C")
-        pdf.ln()
+        y -= row_h
+        content.append(_pdf_line(left, y, table_right, y))
+        content.append(_pdf_text(left + 200, y + 4, "No items in this month.", 10))
+    else:
+        for row in rows:
+            y -= row_h
+            values = [
+                str(row["entry_date"]),
+                str(row["item_name"])[:34],
+                f"{float(row['quantity']):.2f}",
+                f"{float(row['price']):.2f}",
+                f"{float(row['amount']):.2f}",
+                str(row["notes"] or "")[:42],
+            ]
+            content.append(_pdf_line(left, y, table_right, y))
+            for idx, value in enumerate(values):
+                content.append(_pdf_text(col_x[idx] + 4, y + 4, value, 9))
 
-    pdf.ln(3)
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(
-        0,
-        8,
-        pdf_safe(f"Total Quantity: {total_qty:.2f}"),
-        new_x=XPos.LMARGIN,
-        new_y=YPos.NEXT,
-    )
-    pdf.cell(
-        0,
-        8,
-        pdf_safe(f"Total Paisa: Rs {total_amount:.2f}"),
-        new_x=XPos.LMARGIN,
-        new_y=YPos.NEXT,
-    )
+    content.append(_pdf_line(left, table_bottom, table_right, table_bottom))
+    content.append(_pdf_text(left, 56, f"Total Quantity: {total_qty:.2f}", 11, True))
+    content.append(_pdf_text(left, 40, f"Total Paisa: Rs {total_amount:.2f}", 11, True))
 
-    output = pdf.output()
-    if isinstance(output, (bytes, bytearray)):
-        return bytes(output)
-    return str(output).encode("latin-1")
+    stream = "".join(content).encode("latin-1", errors="replace")
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        (
+            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {page_w} {page_h}] "
+            f"/Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>"
+        ).encode(),
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
+        f"<< /Length {len(stream)} >>\nstream\n".encode()
+        + stream
+        + b"\nendstream",
+    ]
+
+    pdf = b"%PDF-1.4\n"
+    offsets = [0]
+    for idx, obj in enumerate(objects, start=1):
+        offsets.append(len(pdf))
+        pdf += f"{idx} 0 obj\n".encode() + obj + b"\nendobj\n"
+
+    xref_pos = len(pdf)
+    pdf += f"xref\n0 {len(objects) + 1}\n".encode()
+    pdf += b"0000000000 65535 f \n"
+    for off in offsets[1:]:
+        pdf += f"{off:010d} 00000 n \n".encode()
+    pdf += (
+        f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\n"
+        f"startxref\n{xref_pos}\n%%EOF\n"
+    ).encode()
+    return pdf
 
 
 @app.before_request
