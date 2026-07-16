@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f3d3e">
+  <title>{{ app_name }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="page">
+    <header class="top">
+      <div>
+        <h1>RABIA'S RENDERINGS MONTHLY BILL</h1>
+      </div>
+      <form class="month-picker" method="get" action="{{ url_for('index') }}">
+        <label for="month">Month</label>
+        <input id="month" type="month" name="month" value="{{ selected_month }}" onchange="this.form.submit()">
+      </form>
+      <a class="btn ghost" href="{{ url_for('download_pdf', month=selected_month) }}">Download PDF</a>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-wrap">
+          {% for category, message in messages %}
+            <p class="flash {{ category }}">{{ message }}</p>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <section class="panel lock-panel">
+      {% if can_edit %}
+        <div class="lock-row">
+          <p class="status-ok">Edit OPEN — aap add / edit / delete kar sakte ho.</p>
+          <form method="post" action="{{ url_for('lock') }}">
+            <input type="hidden" name="month" value="{{ selected_month }}">
+            <button type="submit" class="btn ghost">Lock edit</button>
+          </form>
+        </div>
+      {% else %}
+        <div class="panel-head">
+          <h2>View mode</h2>
+          <p>Koi bhi link open karke hisab dekh sakta hai. Edit ke liye password lagao.</p>
+        </div>
+        <form class="unlock-form" method="post" action="{{ url_for('unlock') }}">
+          <input type="hidden" name="month" value="{{ selected_month }}">
+          <label>
+            Edit password
+            <input type="password" name="password" placeholder="Password" required autocomplete="current-password">
+          </label>
+          <button type="submit" class="btn primary">Unlock edit</button>
+        </form>
+      {% endif %}
+    </section>
+
+    <section class="summary">
+      <div>
+        <span>Selected month</span>
+        <strong>{{ selected_month_label }}</strong>
+      </div>
+      <div>
+        <span>Total items</span>
+        <strong>{{ items|length }}</strong>
+      </div>
+      <div>
+        <span>Total qty</span>
+        <strong>{{ '%.2f'|format(total_qty) }}</strong>
+      </div>
+      <div class="highlight">
+        <span>Total paisa</span>
+        <strong>Rs {{ '%.2f'|format(total_amount) }}</strong>
+      </div>
+    </section>
+
+    {% if can_edit %}
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Naya item add karo</h2>
+        <p>Date, item, quantity, price aur notes.</p>
+      </div>
+      <form class="add-form" method="post" action="{{ url_for('add_item') }}">
+        <label>
+          Date
+          <input type="date" name="entry_date" value="{{ today }}" required>
+        </label>
+        <label>
+          Item name
+          <input type="text" name="item_name" placeholder="e.g. A4 Paper" required autocomplete="off">
+        </label>
+        <label>
+          Quantity
+          <input type="number" name="quantity" value="1" min="0.01" step="0.01" required>
+        </label>
+        <label>
+          Price
+          <input type="number" name="price" value="0" min="0" step="0.01" required>
+        </label>
+        <label class="full">
+          Notes
+          <input type="text" name="notes" placeholder="Optional" autocomplete="off">
+        </label>
+        <div class="full actions">
+          <button type="submit" class="btn primary">Save item</button>
+        </div>
+      </form>
+    </section>
+    {% endif %}
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>{{ selected_month_label }} ka hisab</h2>
+        <p>
+          {% if items %}
+            {% if can_edit %}Neeche list mein edit / delete bhi kar sakte ho.{% else %}Abhi sirf dekh sakte ho. Edit ke liye password unlock karo.{% endif %}
+          {% else %}
+            Is month mein abhi koi item nahi.
+          {% endif %}
+        </p>
+      </div>
+
+      {% if items %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Item</th>
+              <th>Qty</th>
+              <th>Price</th>
+              <th>Amount</th>
+              <th>Notes</th>
+              {% if can_edit %}<th></th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in items %}
+            <tr>
+              <td data-label="Date">{{ item.entry_date }}</td>
+              <td data-label="Item"><strong>{{ item.item_name }}</strong></td>
+              <td data-label="Qty">{{ '%.2f'|format(item.quantity) }}</td>
+              <td data-label="Price">Rs {{ '%.2f'|format(item.price) }}</td>
+              <td data-label="Amount">Rs {{ '%.2f'|format(item.amount) }}</td>
+              <td data-label="Notes">{{ item.notes or '—' }}</td>
+              {% if can_edit %}
+              <td class="row-actions">
+                <a class="link" href="{{ url_for('edit_item', item_id=item.id) }}">Edit</a>
+                <form method="post" action="{{ url_for('delete_item', item_id=item.id) }}" onsubmit="return confirm('Delete this item?');">
+                  <button type="submit" class="link danger">Delete</button>
+                </form>
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr class="total-row">
+              <td colspan="4"><strong>Month ka total</strong></td>
+              <td data-label="Total"><strong>Rs {{ '%.2f'|format(total_amount) }}</strong></td>
+              <td{% if can_edit %} colspan="2"{% endif %}></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty">
+        <p>{% if can_edit %}Pehla item upar se add karo.{% else %}Abhi koi item nahi. Edit unlock karke add kar sakte ho.{% endif %}</p>
+      </div>
+      {% endif %}
+    </section>
+
+    <footer class="foot">
+      <p>Link se koi bhi dekh sakta hai. Edit sirf password se.</p>
+    </footer>
+  </div>
+</body>
+</html>

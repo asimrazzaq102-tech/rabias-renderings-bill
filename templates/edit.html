@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f3d3e">
+  <title>Edit — {{ app_name }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="page narrow">
+    <header class="top">
+      <div>
+        <p class="eyebrow">{{ app_name }}</p>
+        <h1>Edit item</h1>
+      </div>
+      <a class="btn ghost" href="{{ url_for('index', month=item.month_key) }}">Back</a>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-wrap">
+          {% for category, message in messages %}
+            <p class="flash {{ category }}">{{ message }}</p>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <section class="panel">
+      <form class="add-form" method="post">
+        <label>
+          Date
+          <input type="date" name="entry_date" value="{{ item.entry_date }}" required>
+        </label>
+        <label>
+          Item name
+          <input type="text" name="item_name" value="{{ item.item_name }}" required>
+        </label>
+        <label>
+          Quantity
+          <input type="number" name="quantity" value="{{ item.quantity }}" min="0.01" step="0.01" required>
+        </label>
+        <label>
+          Price
+          <input type="number" name="price" value="{{ item.price }}" min="0" step="0.01" required>
+        </label>
+        <label class="full">
+          Notes
+          <input type="text" name="notes" value="{{ item.notes }}">
+        </label>
+        <div class="full actions">
+          <button type="submit" class="btn primary">Update item</button>
+          <a class="btn ghost" href="{{ url_for('index', month=item.month_key) }}">Cancel</a>
+        </div>
+      </form>
+      <p class="hint">Current amount: <strong>Rs {{ '%.2f'|format(amount) }}</strong></p>
+    </section>
+  </div>
+</body>
+</html>

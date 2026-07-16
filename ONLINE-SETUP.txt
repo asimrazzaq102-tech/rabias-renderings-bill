@@ -1,0 +1,81 @@
+RABIA'S RENDERINGS MONTHLY BILL
+Online deploy with Gmail (FREE)
+================================
+
+YES: Gmail se account banao, deploy karo, phir sirf LINK se kaam.
+Python PC pe on karne ki zaroorat NAHI.
+
+PASSWORD
+--------
+Default edit password: rabia123
+
+Online pe apna password set karna:
+Render -> Environment -> EDIT_PASSWORD = apna-password
+
+
+HOW IT WORKS
+------------
+- Link open = koi bhi hisab DEKH sakta hai + PDF download
+- Edit / Add / Delete = sirf password ke baad
+- Password 1 dafa lagao = us browser session mein edit open
+- Link dobara open / browser band = phir se password lagega
+
+
+STEP 1 - GitHub (Gmail se)
+--------------------------
+1. Browser mein jao: https://github.com
+2. Sign up with Google / Gmail
+3. New repository:
+   Name: rabias-renderings-bill
+   Public
+   Create
+
+
+STEP 2 - Files upload
+---------------------
+1. Repository mein "uploading an existing file" / Add file
+2. Ye files upload karo (folder se):
+   app.py
+   requirements.txt
+   Procfile
+   runtime.txt
+   templates/  (andar index.html, edit.html)
+   static/     (andar style.css)
+
+
+STEP 3 - Render.com (Gmail se)
+------------------------------
+1. https://render.com
+2. Get Started -> Sign up with Google (Gmail)
+3. New + -> Web Service
+4. Connect GitHub -> apni repo select karo
+5. Settings:
+   Name: rabias-renderings-bill
+   Runtime: Python
+   Build Command:
+     pip install -r requirements.txt
+   Start Command:
+     gunicorn app:app
+   Instance: Free
+6. Environment Variables add karo:
+   EDIT_PASSWORD = rabia123   (ya apna password)
+   SECRET_KEY = koi-random-lamba-text
+7. Create Web Service
+
+
+STEP 4 - Link mil jayega
+------------------------
+Example:
+https://rabias-renderings-bill.onrender.com
+
+Is link ko:
+- Phone home screen pe save karo
+- WhatsApp pe bhej sakte ho (log dekh sakte hain)
+- Edit ke liye password lagao
+
+
+NOTE
+----
+Free Render pe app thodi der baad sleep ho sakti hai.
+Pehli open thodi slow ho sakti hai (30-60 sec), phir normal.
+Har month PDF download karke backup rakhna best hai.
