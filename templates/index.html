@@ -72,10 +72,100 @@
         <strong>{{ '%.2f'|format(total_qty) }}</strong>
       </div>
       <div class="highlight">
-        <span>Total paisa</span>
+        <span>Total paisa (bill)</span>
         <strong>Rs {{ '%.2f'|format(total_amount) }}</strong>
       </div>
     </section>
+
+    <section class="money-board">
+      <div class="money-card">
+        <span>Mujhe is month mila</span>
+        <strong>Rs {{ '%.2f'|format(total_received) }}</strong>
+        <p class="money-break">
+          {% if payments %}
+            {{ payment_breakdown }} = Rs {{ '%.2f'|format(total_received) }}
+          {% else %}
+            Abhi koi paisa mila nahi
+          {% endif %}
+        </p>
+      </div>
+      <div class="money-card {% if remaining > 0 %}due{% elif remaining < 0 %}extra{% else %}clear{% endif %}">
+        <span>{% if remaining > 0 %}Abhi baqi{% elif remaining < 0 %}Extra mila{% else %}Clear{% endif %}</span>
+        <strong>Rs {{ '%.2f'|format(remaining|abs) }}</strong>
+        <p class="money-break">Bill Rs {{ '%.2f'|format(total_amount) }} − Mila Rs {{ '%.2f'|format(total_received) }}</p>
+      </div>
+    </section>
+
+    {% if can_edit %}
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Paisa mila add karo</h2>
+        <p>Jab paisa mile, yahan likho. 10 phir 10 = total 20 upar live dikhega.</p>
+      </div>
+      <form class="add-form payment-form" method="post" action="{{ url_for('add_payment') }}">
+        <input type="hidden" name="month" value="{{ selected_month }}">
+        <label>
+          Date
+          <input type="date" name="entry_date" value="{{ today }}" required>
+        </label>
+        <label>
+          Paisa mila (Rs)
+          <input type="number" name="amount" value="0" min="0.01" step="0.01" required>
+        </label>
+        <label class="full">
+          Notes
+          <input type="text" name="notes" placeholder="e.g. Cash / JazzCash" autocomplete="off">
+        </label>
+        <div class="full actions">
+          <button type="submit" class="btn primary">Save paisa mila</button>
+        </div>
+      </form>
+    </section>
+    {% endif %}
+
+    {% if payments %}
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Paisa mila — list</h2>
+        <p>Har dafa jo mila, alag dikhta hai. Total upar auto update hota hai.</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Amount</th>
+              <th>Notes</th>
+              {% if can_edit %}<th></th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for pay in payments %}
+            <tr>
+              <td data-label="Date">{{ pay.entry_date }}</td>
+              <td data-label="Amount"><strong>Rs {{ '%.2f'|format(pay.amount) }}</strong></td>
+              <td data-label="Notes">{{ pay.notes or '—' }}</td>
+              {% if can_edit %}
+              <td class="row-actions">
+                <form method="post" action="{{ url_for('delete_payment', payment_id=pay.id) }}" onsubmit="return confirm('Delete this paisa mila?');">
+                  <button type="submit" class="link danger">Delete</button>
+                </form>
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr class="total-row">
+              <td><strong>Total mila</strong></td>
+              <td data-label="Total"><strong>Rs {{ '%.2f'|format(total_received) }}</strong></td>
+              <td{% if can_edit %} colspan="2"{% endif %}><strong>{{ payment_breakdown }}</strong></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+    {% endif %}
 
     {% if can_edit %}
     <section class="panel">

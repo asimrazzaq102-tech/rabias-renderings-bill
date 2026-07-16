@@ -148,6 +148,68 @@ input:focus {
   color: rgba(247, 243, 234, 0.75);
 }
 
+.money-board {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.money-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  box-shadow: var(--shadow);
+}
+
+.money-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-bottom: 6px;
+}
+
+.money-card strong {
+  display: block;
+  font-family: var(--display);
+  font-size: clamp(1.4rem, 3vw, 1.9rem);
+  color: var(--brand);
+  line-height: 1.1;
+}
+
+.money-card .money-break {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.money-card.due {
+  border-color: rgba(196, 92, 38, 0.35);
+  background: linear-gradient(160deg, rgba(255, 252, 247, 0.96), rgba(255, 236, 220, 0.9));
+}
+
+.money-card.due strong {
+  color: var(--accent);
+}
+
+.money-card.clear {
+  border-color: rgba(31, 107, 74, 0.3);
+  background: linear-gradient(160deg, rgba(255, 252, 247, 0.96), rgba(220, 240, 228, 0.9));
+}
+
+.money-card.clear strong {
+  color: var(--ok);
+}
+
+.money-card.extra {
+  border-color: rgba(15, 61, 62, 0.25);
+}
+
+.payment-form {
+  grid-template-columns: 1fr 1fr;
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -341,6 +403,10 @@ th {
     grid-template-columns: 1fr 1fr;
   }
 
+  .money-board {
+    grid-template-columns: 1fr;
+  }
+
   .add-form {
     grid-template-columns: 1fr 1fr;
   }
@@ -357,7 +423,9 @@ th {
   }
 
   .summary,
-  .add-form {
+  .money-board,
+  .add-form,
+  .payment-form {
     grid-template-columns: 1fr;
   }
 

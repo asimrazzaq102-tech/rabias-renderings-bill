@@ -77,6 +77,21 @@ def init_db() -> None:
     db.execute(
         "CREATE INDEX IF NOT EXISTS idx_bills_month ON bills(month_key, entry_date)"
     )
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entry_date TEXT NOT NULL,
+            amount REAL NOT NULL DEFAULT 0,
+            notes TEXT NOT NULL DEFAULT '',
+            month_key TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_payments_month ON payments(month_key, entry_date)"
+    )
     db.commit()
     db.close()
 
@@ -141,6 +156,29 @@ def fetch_month_rows(month_key: str) -> tuple[list[dict], float, float]:
     return rows, total_amount, total_qty
 
 
+def fetch_month_payments(month_key: str) -> tuple[list[dict], float]:
+    db = get_db()
+    items = db.execute(
+        """
+        SELECT *
+        FROM payments
+        WHERE month_key = ?
+        ORDER BY entry_date ASC, id ASC
+        """,
+        (month_key,),
+    ).fetchall()
+    rows = [dict(item) for item in items]
+    total_received = sum(float(row["amount"]) for row in rows)
+    return rows, total_received
+
+
+def payment_breakdown(payments: list[dict]) -> str:
+    if not payments:
+        return "—"
+    parts = [f"{float(p['amount']):.0f}" if float(p["amount"]).is_integer() else f"{float(p['amount']):.2f}" for p in payments]
+    return " + ".join(parts)
+
+
 def pdf_safe(text: str) -> str:
     return (
         text.encode("latin-1", errors="replace")
@@ -162,6 +200,8 @@ def _pdf_line(x1: float, y1: float, x2: float, y2: float) -> str:
 
 def build_month_pdf(month_key: str) -> bytes:
     rows, total_amount, total_qty = fetch_month_rows(month_key)
+    payments, total_received = fetch_month_payments(month_key)
+    remaining = total_amount - total_received
     month_label = format_month_label(month_key)
     generated = datetime.now().strftime("%Y-%m-%d %H:%M")
 
@@ -177,7 +217,7 @@ def build_month_pdf(month_key: str) -> bytes:
     content.append(_pdf_text(page_w / 2 - 80, top - 40, f"Generated: {generated}", 11))
 
     table_top = top - 70
-    table_bottom = 80
+    table_bottom = 100
     table_right = page_w - left
     header_y = table_top - row_h
 
@@ -213,8 +253,27 @@ def build_month_pdf(month_key: str) -> bytes:
                 content.append(_pdf_text(col_x[idx] + 4, y + 4, value, 9))
 
     content.append(_pdf_line(left, table_bottom, table_right, table_bottom))
-    content.append(_pdf_text(left, 56, f"Total Quantity: {total_qty:.2f}", 11, True))
-    content.append(_pdf_text(left, 40, f"Total Paisa: Rs {total_amount:.2f}", 11, True))
+    breakdown = payment_breakdown(payments)
+    content.append(_pdf_text(left, 78, f"Total Quantity: {total_qty:.2f}", 11, True))
+    content.append(_pdf_text(left, 62, f"Total Paisa (bill): Rs {total_amount:.2f}", 11, True))
+    content.append(
+        _pdf_text(
+            left,
+            46,
+            f"Paisa mila: Rs {total_received:.2f}  ({breakdown})",
+            11,
+            True,
+        )
+    )
+    content.append(
+        _pdf_text(
+            left,
+            30,
+            f"Baqi: Rs {remaining:.2f}",
+            11,
+            True,
+        )
+    )
 
     stream = "".join(content).encode("latin-1", errors="replace")
     objects = [
@@ -263,8 +322,9 @@ def index():
     db = get_db()
     months = db.execute(
         """
-        SELECT DISTINCT month_key
-        FROM bills
+        SELECT month_key FROM bills
+        UNION
+        SELECT month_key FROM payments
         ORDER BY month_key DESC
         """
     ).fetchall()
@@ -274,6 +334,8 @@ def index():
 
     rows, total_amount, total_qty = fetch_month_rows(selected_month)
     rows = list(reversed(rows))
+    payments, total_received = fetch_month_payments(selected_month)
+    remaining = total_amount - total_received
 
     return render_template(
         "index.html",
@@ -285,6 +347,10 @@ def index():
         items=rows,
         total_amount=total_amount,
         total_qty=total_qty,
+        payments=payments,
+        total_received=total_received,
+        remaining=remaining,
+        payment_breakdown=payment_breakdown(payments),
         today=date.today().isoformat(),
         current_month=current_month_key(),
         can_edit=can_edit(),
@@ -328,6 +394,60 @@ def download_pdf():
         as_attachment=True,
         download_name=filename,
     )
+
+
+@app.route("/add-payment", methods=["POST"])
+@require_edit
+def add_payment():
+    entry_date = (request.form.get("entry_date") or "").strip()
+    amount = parse_float(request.form.get("amount", "0"), 0.0)
+    notes = (request.form.get("notes") or "").strip()
+    month_from_form = (request.form.get("month") or "").strip()
+
+    if not entry_date:
+        flash("Date zaroori hai.", "error")
+        return redirect(url_for("index", month=month_from_form or current_month_key()))
+
+    if amount <= 0:
+        flash("Paisa mila 0 se zyada hona chahiye.", "error")
+        return redirect(url_for("index", month=month_key_from_date(entry_date)))
+
+    month_key = month_from_form or month_key_from_date(entry_date)
+    db = get_db()
+    db.execute(
+        """
+        INSERT INTO payments (entry_date, amount, notes, month_key, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            entry_date,
+            amount,
+            notes,
+            month_key,
+            datetime.now().isoformat(timespec="seconds"),
+        ),
+    )
+    db.commit()
+    flash(f"Paisa mila save: Rs {amount:.2f}", "success")
+    return redirect(url_for("index", month=month_key))
+
+
+@app.route("/delete-payment/<int:payment_id>", methods=["POST"])
+@require_edit
+def delete_payment(payment_id: int):
+    db = get_db()
+    payment = db.execute(
+        "SELECT month_key FROM payments WHERE id = ?", (payment_id,)
+    ).fetchone()
+    if payment is None:
+        flash("Payment nahi mili.", "error")
+        return redirect(url_for("index"))
+
+    month_key = payment["month_key"]
+    db.execute("DELETE FROM payments WHERE id = ?", (payment_id,))
+    db.commit()
+    flash("Paisa mila entry delete ho gayi.", "success")
+    return redirect(url_for("index", month=month_key))
 
 
 @app.route("/add", methods=["POST"])
