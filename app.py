@@ -30,9 +30,7 @@ from flask import (
     session,
     url_for,
 )
-from fpdf import FPDF
-
-APP_NAME = "RABIA'S RENDERINGS MONTHLY BILL"
+# fpdf sirf PDF download pe load hota hai — startup crash avoid = "RABIA'S RENDERINGS MONTHLY BILL"
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get("DB_PATH", BASE_DIR / "bills.db"))
 # Change this on online deploy (Render Environment Variable: EDIT_PASSWORD)
@@ -142,7 +140,14 @@ def fetch_month_rows(month_key: str) -> tuple[list[dict], float, float]:
     return rows, total_amount, total_qty
 
 
+def pdf_safe(text: str) -> str:
+    return text.encode("latin-1", errors="replace").decode("latin-1")
+
+
 def build_month_pdf(month_key: str) -> bytes:
+    from fpdf import FPDF
+    from fpdf.enums import XPos, YPos
+
     rows, total_amount, total_qty = fetch_month_rows(month_key)
     month_label = format_month_label(month_key)
 
@@ -150,10 +155,31 @@ def build_month_pdf(month_key: str) -> bytes:
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, "RABIA'S RENDERINGS MONTHLY BILL", ln=True, align="C")
+    pdf.cell(
+        0,
+        10,
+        pdf_safe("RABIA'S RENDERINGS MONTHLY BILL"),
+        new_x=XPos.LMARGIN,
+        new_y=YPos.NEXT,
+        align="C",
+    )
     pdf.set_font("Helvetica", "", 12)
-    pdf.cell(0, 8, f"Month: {month_label}", ln=True, align="C")
-    pdf.cell(0, 8, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=True, align="C")
+    pdf.cell(
+        0,
+        8,
+        pdf_safe(f"Month: {month_label}"),
+        new_x=XPos.LMARGIN,
+        new_y=YPos.NEXT,
+        align="C",
+    )
+    pdf.cell(
+        0,
+        8,
+        pdf_safe(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}"),
+        new_x=XPos.LMARGIN,
+        new_y=YPos.NEXT,
+        align="C",
+    )
     pdf.ln(4)
 
     headers = ["Date", "Item", "Qty", "Price", "Amount", "Notes"]
@@ -163,7 +189,7 @@ def build_month_pdf(month_key: str) -> bytes:
     pdf.set_fill_color(15, 61, 62)
     pdf.set_text_color(255, 255, 255)
     for header, width in zip(headers, widths):
-        pdf.cell(width, 9, header, border=1, fill=True, align="C")
+        pdf.cell(width, 9, pdf_safe(header), border=1, fill=True, align="C")
     pdf.ln()
 
     pdf.set_text_color(0, 0, 0)
@@ -180,18 +206,30 @@ def build_month_pdf(month_key: str) -> bytes:
             str(row["notes"] or "")[:50],
         ]
         for value, width in zip(values, widths):
-            pdf.cell(width, 8, value, border=1, fill=fill)
+            pdf.cell(width, 8, pdf_safe(value), border=1, fill=fill)
         pdf.ln()
         fill = not fill
 
     if not rows:
-        pdf.cell(sum(widths), 10, "No items in this month.", border=1, align="C")
+        pdf.cell(sum(widths), 10, pdf_safe("No items in this month."), border=1, align="C")
         pdf.ln()
 
     pdf.ln(3)
     pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(0, 8, f"Total Quantity: {total_qty:.2f}", ln=True)
-    pdf.cell(0, 8, f"Total Paisa: Rs {total_amount:.2f}", ln=True)
+    pdf.cell(
+        0,
+        8,
+        pdf_safe(f"Total Quantity: {total_qty:.2f}"),
+        new_x=XPos.LMARGIN,
+        new_y=YPos.NEXT,
+    )
+    pdf.cell(
+        0,
+        8,
+        pdf_safe(f"Total Paisa: Rs {total_amount:.2f}"),
+        new_x=XPos.LMARGIN,
+        new_y=YPos.NEXT,
+    )
 
     output = pdf.output()
     if isinstance(output, (bytes, bytearray)):
@@ -266,7 +304,11 @@ def lock():
 @app.route("/pdf")
 def download_pdf():
     selected_month = request.args.get("month") or current_month_key()
-    pdf_bytes = build_month_pdf(selected_month)
+    try:
+        pdf_bytes = build_month_pdf(selected_month)
+    except Exception:
+        flash("PDF banane mein error aaya. Thori der baad try karo.", "error")
+        return redirect(url_for("index", month=selected_month))
     filename = f"Rabias_Renderings_{selected_month}.pdf"
     return send_file(
         io.BytesIO(pdf_bytes),
